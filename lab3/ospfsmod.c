@@ -428,7 +428,6 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	uint32_t f_pos = filp->f_pos;
 	int r = 0;		/* Error return value, if any */
 	int ok_so_far = 0;	/* Return value from 'filldir' */
-
 	// f_pos is an offset into the directory's data, plus two.
 	// The "plus two" is to account for "." and "..".
 	if (r == 0 && f_pos == 0) {
@@ -442,7 +441,6 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		if (ok_so_far >= 0)
 			f_pos++;
 	}
-
 	// actual entries
 	while (r == 0 && ok_so_far >= 0 && f_pos >= 2) {
 		ospfs_direntry_t *od;
@@ -452,8 +450,8 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		r = 1;		/* Fix me! */
-		break;		/* Fix me! */
+		//r = 1;		/* Fix me! */
+		//break;		/* Fix me! */
 
 		/* Get a pointer to the next entry (od) in the directory.
 		 * The file system interprets the contents of a
@@ -474,11 +472,46 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * your function should advance f_pos by the proper amount to
 		 * advance to the next directory entry.
 		 */
+                 uint32_t newpos = (f_pos-2)*OSPFS_DIRENTRY_SIZE;
+                 if(newpos >= 1024)
+                 {
+                   r = 1;
+                   break;
+                 }
+                 od = ospfs_inode_data(dir_oi, newpos);
+                 entry_oi = ospfs_inode(od->od_ino);
+                 //QUESTION: WHAT IS THIS LINK FILE
+                 if(strcmp(od->od_name, "link")== 0) 
+                 {
+                   r = 1;
+                   break;
+                 }
+                 
+                 if(od->od_ino == 0) 
+                 {
+                   f_pos += 1;
+                   continue;
+                 }
+                 if(entry_oi->oi_ftype == 0) {
+                   
+                   ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_REG);
+                 } else if(entry_oi->oi_ftype == 1) {
 
-		/* EXERCISE: Your code here */
+                   ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_DIR);
+                 }
+                 else {
+ 
+                   ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_LNK);
+                 }
+                 if(ok_so_far < 0)
+                 {
+                   f_pos += 1;
+                   break;
+                 }
+                 f_pos += 1;
+                 
 	}
-
-	// Save the file position and return!
+        // Save the file position and return!
 	filp->f_pos = f_pos;
 	return r;
 }
