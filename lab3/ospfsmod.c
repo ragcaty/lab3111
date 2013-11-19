@@ -878,7 +878,11 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 	// Make sure we don't read past the end of the file!
 	// Change 'count' so we never read past the end of the file.
 	/* EXERCISE: Your code here */
-
+        if(*f_pos + count > oi->oi_size) 
+        {
+          count = oi->oi_size - *f_pos;
+        }
+        uint32_t remainder = -1;
 	// Copy the data to user block by block
 	while (amount < count && retval >= 0) {
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
@@ -891,19 +895,32 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 			goto done;
 		}
 
-		data = ospfs_block(blockno);
-
 		// Figure out how much data is left in this block to read.
 		// Copy data into user space. Return -EFAULT if unable to write
 		// into user space.
 		// Use variable 'n' to track number of bytes moved.
 		/* EXERCISE: Your code here */
-		retval = -EIO; // Replace these lines
-		goto done;
-
-		buffer += n;
-		amount += n;
-		*f_pos += n;
+                
+                n  = (OSPFS_BLKSIZE - ((*f_pos)%OSPFS_BLKSIZE));
+                data = ospfs_inode_data(oi, *f_pos);
+                if(n < count-amount) {
+                  if(copy_to_user(buffer, data, n) != 0)
+                  {
+                    retval = -EIO;
+                    goto done;
+                  }
+                } else {
+                  n = count-amount;
+                  if(copy_to_user(buffer, data, n)  != 0)
+                  {
+                    retval = -EIO;
+                    goto done;
+                  }
+                }
+                amount += n;
+                buffer += n;
+                *f_pos += n;
+                
 	}
 
     done:
@@ -938,7 +955,6 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// Support files opened with the O_APPEND flag.  To detect O_APPEND,
 	// use struct file's f_flags field and the O_APPEND bit.
 	/* EXERCISE: Your code here */
-
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
@@ -1041,6 +1057,12 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	//    entries and return one of them.
 
 	/* EXERCISE: Your code here. */
+        //Check dir_oi->direct pointers for one that points to 0. If there arent any
+        //Use add_block to add to directory file
+          //Use err_ptr if add_block fails
+        //Otherwise, make sure all directory entries are clear in new block, return one of them to use
+
+        //Bit map manipulation?
 	return ERR_PTR(-EINVAL); // Replace this line
 }
 
@@ -1114,8 +1136,17 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
 	/* EXERCISE: Your code here. */
-	return -EINVAL; // Replace this line
-
+        ospfs_direntry_t* exist = find_direntry(dir_oi, dentry->d_name.name, dentry->d_name.len);
+        if(exist != NULL) {
+          return -EEXIST;
+        }
+        //If it doesnt already exist, use create_blank_direntry()
+        //find empty inode? look through bit map?
+          //Initialize direntry, name and inode number ^^
+            //Check if name is too long, return -ENAMETOOLONG
+          //Initialize inode, size? ftype = OSPFS_FTYPE_REG, nline = 1, mode?
+          //direct[] find allocate_block()? as many blocks as size? indirect (if needed)
+ 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
 	   getting here. */
